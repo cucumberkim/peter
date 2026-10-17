@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VS 놀이</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+        background: #1b1b22;
+        color: #fff;
+        min-height: 100vh;
+      }
+      .screen {
+        display: none;
+        padding: 24px 16px;
+        text-align: center;
+      }
+      .screen.active {
+        display: block;
+      }
+      h1 {
+        margin: 24px 0 8px;
+      }
+      .msg {
+        color: #bbb;
+        margin-bottom: 24px;
+      }
+      .rounds {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+      }
+      button {
+        font-size: 18px;
+        padding: 14px 28px;
+        border: 0;
+        border-radius: 10px;
+        background: #4f7cff;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #6b91ff;
+      }
+      .info {
+        font-size: 20px;
+        margin-bottom: 16px;
+      }
+      .vs-row {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        align-items: stretch;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .card {
+        flex: 1;
+        min-width: 0;
+        background: #2a2a35;
+        border-radius: 12px;
+        padding: 12px;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      .card:hover {
+        transform: scale(1.02);
+        background: #34344a;
+      }
+      .name {
+        font-size: 22px;
+        font-weight: bold;
+        margin-bottom: 10px;
+        word-break: break-all;
+      }
+      .card img {
+        width: 100%;
+        height: 60vh;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #111;
+      }
+      .vs-mark {
+        align-self: center;
+        font-size: 28px;
+        font-weight: bold;
+        color: #ff5b5b;
+      }
+      .winner img {
+        max-width: 90%;
+        max-height: 65vh;
+        border-radius: 12px;
+      }
+      .winner .name {
+        font-size: 28px;
+        margin: 16px 0;
+      }
+      @media (max-width: 600px) {
+        .vs-row {
+          flex-direction: column;
+        }
+        .card img {
+          height: 30vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="setup" class="screen active">
+      <h1>VS 놀이</h1>
+      <div id="setup-msg" class="msg">사진 목록을 불러오는 중...</div>
+      <div id="rounds" class="rounds"></div>
+    </div>
+
+    <div id="game" class="screen">
+      <div id="info" class="info"></div>
+      <div class="vs-row">
+        <div class="card" id="card0">
+          <div class="name" id="name0"></div>
+          <img id="img0" alt="" />
+        </div>
+        <div class="vs-mark">VS</div>
+        <div class="card" id="card1">
+          <div class="name" id="name1"></div>
+          <img id="img1" alt="" />
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="screen winner">
+      <h1>우승!</h1>
+      <div class="name" id="winner-name"></div>
+      <img id="winner-img" alt="" />
+      <div><button id="restart">다시 하기</button></div>
+    </div>
+
+    <script>
+      let photos = [];
+      let current = [];
+      let next = [];
+      let idx = 0;
+      let roundSize = 0;
+
+      const $ = (id) => document.getElementById(id);
+
+      function show(id) {
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.remove("active"));
+        $(id).classList.add("active");
+      }
+
+      function displayName(file) {
+        return file.replace(/\.jpe?g$/i, "");
+      }
+
+      function src(file) {
+        return "photos/" + encodeURIComponent(file);
+      }
+
+      function roundLabel(n) {
+        return n === 2 ? "결승" : n + "강";
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+
+      function buildSetup() {
+        const box = $("rounds");
+        box.innerHTML = "";
+        const options = [];
+        for (let n = 2; n <= photos.length; n *= 2) options.push(n);
+
+        if (options.length === 0) {
+          $("setup-msg").textContent =
+            "사진이 2장 이상 필요합니다. (현재 " + photos.length + "장)";
+          return;
+        }
+        $("setup-msg").textContent =
+          "사진 " + photos.length + "장 · 몇 강 전으로 할까요?";
+        options.forEach((n) => {
+          const b = document.createElement("button");
+          b.textContent = roundLabel(n);
+          b.onclick = () => start(n);
+          box.appendChild(b);
+        });
+      }
+
+      function start(n) {
+        current = shuffle(photos).slice(0, n);
+        roundSize = n;
+        next = [];
+        idx = 0;
+        show("game");
+        showMatch();
+      }
+
+      function showMatch() {
+        const a = current[idx];
+        const b = current[idx + 1];
+        $("info").textContent =
+          roundLabel(roundSize) +
+          " (" +
+          (idx / 2 + 1) +
+          "/" +
+          current.length / 2 +
+          ")";
+        $("name0").textContent = displayName(a);
+        $("name1").textContent = displayName(b);
+        $("img0").src = src(a);
+        $("img1").src = src(b);
+      }
+
+      function pick(side) {
+        next.push(current[idx + side]);
+        idx += 2;
+        if (idx < current.length) {
+          showMatch();
+          return;
+        }
+        if (next.length === 1) {
+          $("winner-name").textContent = displayName(next[0]);
+          $("winner-img").src = src(next[0]);
+          show("result");
+          return;
+        }
+        current = next;
+        roundSize = current.length;
+        next = [];
+        idx = 0;
+        showMatch();
+      }
+
+      $("card0").onclick = () => pick(0);
+      $("card1").onclick = () => pick(1);
+      $("restart").onclick = () => {
+        show("setup");
+        buildSetup();
+      };
+
+      fetch("photos.json")
+        .then((r) => r.json())
+        .then((list) => {
+          photos = list;
+          buildSetup();
+        })
+        .catch(() => {
+          $("setup-msg").textContent =
+            "photos.json 을 불러오지 못했습니다. node make-list.js 를 실행했는지, 로컬 서버(Live Server 등)로 열었는지 확인하세요.";
+        });
+    </script>
+  </body>
+</html>
